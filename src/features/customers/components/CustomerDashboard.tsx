@@ -16,10 +16,14 @@ import { CustomerTable } from "./CustomerTable";
 import {
   Customer,
   createEmptyFilters,
+  CustomerFilters as Filters,
   PaginationState,
   SortConfig,
   SortableField,
 } from "../types/customer.types";
+import { useCustomerFilters } from "../hooks/useCustomerFilters";
+import { CustomerFiltersPanel } from "./CustomerFilters";
+
 
 export function CustomerDashboard() {
   const [search, setSearch] = useState("");
@@ -29,10 +33,11 @@ export function CustomerDashboard() {
     page: 1,
     pageSize: 10,
   });
+  const { filters, setFilters, activeFilterCount, clearAll, applyTemplate } = useCustomerFilters();
 
   const { data, isLoading, isError, error, refetch } = useCustomers({
     search: debouncedSearch,
-    filters: createEmptyFilters(), // real filters plug in here in Phase 2
+    filters,// real filters plug in here in Phase 2
     sort,
     pagination,
   });
@@ -45,18 +50,36 @@ export function CustomerDashboard() {
     });
   }
 
+function handleFiltersChange(next: Filters) {
+  setFilters(next);
+  setPagination((p) => ({ ...p, page: 1 }));
+}
+
   const totalPages = data ? Math.ceil(data.total / pagination.pageSize) : 0;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <Input
-          placeholder="Search customers..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
-      </div>
+      
+  <Input
+    placeholder="Search customers..."
+    value={search}
+    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+    className="max-w-sm"
+  />
+
+<CustomerFiltersPanel
+  filters={filters}
+  onFiltersChange={handleFiltersChange}
+  activeFilterCount={activeFilterCount}
+  onClearAll={clearAll}
+  onApplyTemplate={(template) => {
+    applyTemplate(template.filters);
+    if (template.sort) setSort(template.sort);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }}
+/>
+</div>
 
       {isLoading && <p className="text-muted-foreground">Loading customers…</p>}
 
