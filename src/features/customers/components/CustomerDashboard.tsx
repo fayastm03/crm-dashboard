@@ -26,6 +26,8 @@ import { CustomerFormDialog } from "./CustomerFormDialog";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { CustomerDetailDrawer } from "./CustomerDetailDrawer";
 import { Toaster } from "@/components/ui/toaster";
+import { CustomerTableSkeleton } from "./CustomerTableSkeleton";
+import { EmptyState } from "./EmptyState";
 
 export function CustomerDashboard() {
   const [search, setSearch] = useState("");
@@ -35,7 +37,18 @@ export function CustomerDashboard() {
     page: 1,
     pageSize: 10,
   });
-  const { filters, setFilters, activeFilterCount, clearAll, applyTemplate } = useCustomerFilters();
+ const {
+  filters,
+  setFilters,
+  activeFilterCount,
+  clearAll,
+  applyTemplate,
+  savedFilters,
+  saveCurrentFilter,
+  applySavedFilter,
+  deleteSavedFilter,
+  reorderSavedFilters,
+} = useCustomerFilters();
 
   const { data, isLoading, isError, error, refetch } = useCustomers({
     search: debouncedSearch,
@@ -101,7 +114,7 @@ export function CustomerDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4 justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between">
         <div className="flex items-center gap-4">
           <Input
             placeholder="Search customers..."
@@ -110,24 +123,31 @@ export function CustomerDashboard() {
             className="max-w-sm"
           />
 
-          <CustomerFiltersPanel
-            filters={filters}
-            onFiltersChange={handleFiltersChange}
-            activeFilterCount={activeFilterCount}
-            onClearAll={clearAll}
-            onApplyTemplate={(template) => {
-              applyTemplate(template.filters);
-              if (template.sort) setSort(template.sort);
-              setPagination((p) => ({ ...p, page: 1 }));
-            }}
-          />
+       <CustomerFiltersPanel
+  filters={filters}
+  onFiltersChange={handleFiltersChange}
+  activeFilterCount={activeFilterCount}
+  onClearAll={clearAll}
+  onApplyTemplate={(template) => {
+    applyTemplate(template.filters);
+    if (template.sort) setSort(template.sort);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }}
+  savedFilters={savedFilters}
+  onSaveCurrentFilter={saveCurrentFilter}
+  onApplySavedFilter={(f) => {
+    applySavedFilter(f);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }}
+  onDeleteSavedFilter={deleteSavedFilter}
+  onReorderSavedFilters={reorderSavedFilters}
+/>
         </div>
 
         <Button onClick={handleAddNew}>Add Customer</Button>
       </div>
 
-      {isLoading && <p className="text-muted-foreground">Loading customers…</p>}
-
+     {isLoading && !data && <CustomerTableSkeleton />}
       {isError && (
         <div className="text-destructive">
           <p>Failed to load customers: {(error as Error).message}</p>
@@ -137,18 +157,29 @@ export function CustomerDashboard() {
         </div>
       )}
 
-      {data && (
-        <>
-          <CustomerTable
-            customers={data.data}
-            sort={sort}
-            onSortChange={handleSortChange}
-            onRowClick={handleRowClick}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
+{data && (
+  <>
+    {data.data.length === 0 ? (
+      <EmptyState
+        hasActiveFilters={activeFilterCount > 0 || search.trim().length > 0}
+        onClearFilters={() => {
+          clearAll();
+          setSearch("");
+        }}
+      />
+    ) : (
+      <CustomerTable
+        customers={data.data}
+        sort={sort}
+        onSortChange={handleSortChange}
+        onRowClick={handleRowClick}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
+    )}
 
-          <div className="flex items-center justify-between">
+          {data.data.length > 0 && (
+            <div className="flex items-center justify-between">
             <Select
               value={String(pagination.pageSize)}
               onValueChange={(val) =>
@@ -184,7 +215,7 @@ export function CustomerDashboard() {
                 Next
               </Button>
             </div>
-          </div>
+          </div>)}
         </>
       )}
 
