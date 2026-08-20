@@ -1,8 +1,10 @@
-import { CustomerFilters } from "../types/customer.types";
+import { CustomerFilters, SortConfig } from "../types/customer.types";
 
-// Pure data, not components — keeps the "what are the presets" question
-// separate from "how are they rendered", so this file is trivially testable.
-export const FILTER_TEMPLATES: { name: string; filters: Partial<CustomerFilters> }[] = [
+export const FILTER_TEMPLATES: {
+  name: string;
+  filters: Partial<CustomerFilters>;
+  sort?: SortConfig;
+}[] = [
   {
     name: "Active Customers",
     filters: { status: ["active"] },
@@ -15,6 +17,7 @@ export const FILTER_TEMPLATES: { name: string; filters: Partial<CustomerFilters>
         to: null,
       },
     },
+    sort: { field: "lastContactDate", direction: "desc" }, // most recent first
   },
   {
     name: "Inactive Leads",

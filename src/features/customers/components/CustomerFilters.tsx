@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { CustomerFilters as Filters, CustomerStatus, SortConfig } from "../types/customer.types";
-import { AVAILABLE_COMPANIES } from "../api/mock-data";
+import { useCompanies } from "../api/customer.queries";
 import { FILTER_TEMPLATES } from "../utils/filterTemplates";
 import { Filter } from "lucide-react";
 
@@ -37,6 +37,7 @@ export function CustomerFiltersPanel({
   // and matches how the mockups show an explicit Apply button
   const [draft, setDraft] = useState<Filters>(filters);
   const [open, setOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState("");
 
   function toggleStatus(status: CustomerStatus) {
     setDraft((d) => ({
@@ -65,6 +66,12 @@ export function CustomerFiltersPanel({
     onClearAll();
     setOpen(false);
   }
+
+  const { data: companies = [] } = useCompanies();
+
+  const filteredCompanies = companies.filter((c) =>
+  c.toLowerCase().includes(companySearch.toLowerCase())
+);
 
   return (
     <Sheet open={open} onOpenChange={(next) => { setOpen(next); if (next) setDraft(filters); }}>
@@ -120,21 +127,29 @@ export function CustomerFiltersPanel({
           </div>
 
           {/* Company */}
-          <div>
-            <p className="text-sm font-medium mb-2">Company</p>
-            <div className="space-y-2">
-              {AVAILABLE_COMPANIES.map((company) => (
-                <label key={company} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={draft.companies.includes(company)}
-                    onCheckedChange={() => toggleCompany(company)}
-                  />
-                  {company}
-                </label>
-              ))}
-            </div>
-          </div>
-
+<div>
+  <p className="text-sm font-medium mb-2">Company</p>
+  <Input
+    placeholder="Search companies..."
+    value={companySearch}
+    onChange={(e) => setCompanySearch(e.target.value)}
+    className="mb-2 h-8 text-sm"
+  />
+  <div className="space-y-2 max-h-40 overflow-y-auto">
+    {filteredCompanies.length === 0 && (
+      <p className="text-sm text-muted-foreground">No companies match.</p>
+    )}
+    {filteredCompanies.map((company) => (
+      <label key={company} className="flex items-center gap-2 text-sm">
+        <Checkbox
+          checked={draft.companies.includes(company)}
+          onCheckedChange={() => toggleCompany(company)}
+        />
+        {company}
+      </label>
+    ))}
+  </div>
+</div>
           {/* Date range */}
           <div>
             <p className="text-sm font-medium mb-2">Last Contact Date Range</p>

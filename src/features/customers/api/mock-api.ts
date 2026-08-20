@@ -2,6 +2,7 @@ import { MOCK_CUSTOMERS } from "./mock-data";
 import {
   Customer,
   CustomerFilters,
+  CustomerInput,
   FetchCustomersParams,
   FetchCustomersResult,
 } from "../types/customer.types";
@@ -81,7 +82,7 @@ export async function fetchCustomers(
 ): Promise<FetchCustomersResult> {
   await new Promise((resolve) => setTimeout(resolve, LATENCY_MS));
 
-  let result = MOCK_CUSTOMERS.filter((c) => matchesSearch(c, params.search));
+  let result = mutableCustomers.filter((c) => matchesSearch(c, params.search));
   result = applyFilters(result, params.filters);
   result = sortCustomers(result, params.sort);
 
@@ -91,4 +92,43 @@ export async function fetchCustomers(
   const data = result.slice(start, start + pageSize);
 
   return { data, total };
+}
+
+export async function fetchCompanies(): Promise<string[]> {
+  await new Promise((resolve) => setTimeout(resolve, 150)); // shorter latency, this is a small lookup
+  const unique = Array.from(new Set(mutableCustomers.map((c) => c.company))).filter(Boolean);
+  return unique.sort();
+}
+
+let mutableCustomers = [...MOCK_CUSTOMERS]; // module-level array so mutations persist across calls in this session
+
+export async function createCustomer(input: CustomerInput): Promise<Customer> {
+  await new Promise((resolve) => setTimeout(resolve, LATENCY_MS));
+
+  const newCustomer: Customer = {
+    ...input,
+    id: `cust_${Date.now()}`, // good enough for a mock; a real backend would generate this
+    createdDate: new Date().toISOString(),
+  };
+  mutableCustomers = [newCustomer, ...mutableCustomers];
+  return newCustomer;
+}
+
+export async function updateCustomer(
+  id: string,
+  input: Partial<CustomerInput>
+): Promise<Customer> {
+  await new Promise((resolve) => setTimeout(resolve, LATENCY_MS));
+
+  const index = mutableCustomers.findIndex((c) => c.id === id);
+  if (index === -1) throw new Error("Customer not found");
+
+  const updated = { ...mutableCustomers[index], ...input };
+  mutableCustomers[index] = updated;
+  return updated;
+}
+
+export async function deleteCustomer(id: string): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, LATENCY_MS));
+  mutableCustomers = mutableCustomers.filter((c) => c.id !== id);
 }
