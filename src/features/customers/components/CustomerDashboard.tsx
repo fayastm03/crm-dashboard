@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,11 +15,19 @@ import { useDebounce } from "../hooks/useDebounce";
 import { CustomerTable } from "./CustomerTable";
 import {
   Customer,
-  createEmptyFilters,
+  CustomerFilters as Filters,
   PaginationState,
   SortConfig,
   SortableField,
 } from "../types/customer.types";
+import { useCustomerFilters } from "../hooks/useCustomerFilters";
+import { CustomerFiltersPanel } from "./CustomerFilters";
+import { CustomerFormDialog } from "./CustomerFormDialog";
+import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
+import { CustomerDetailDrawer } from "./CustomerDetailDrawer";
+import { Toaster } from "@/components/ui/toaster";
+import { CustomerTableSkeleton } from "./CustomerTableSkeleton";
+import { EmptyState } from "./EmptyState";
 
 export function CustomerDashboard() {
   const [search, setSearch] = useState("");
@@ -29,13 +37,45 @@ export function CustomerDashboard() {
     page: 1,
     pageSize: 10,
   });
+ const {
+  filters,
+  setFilters,
+  activeFilterCount,
+  clearAll,
+  applyTemplate,
+  savedFilters,
+  saveCurrentFilter,
+  applySavedFilter,
+  deleteSavedFilter,
+  reorderSavedFilters,
+} = useCustomerFilters();
 
   const { data, isLoading, isError, error, refetch } = useCustomers({
     search: debouncedSearch,
-    filters: createEmptyFilters(), // real filters plug in here in Phase 2
+    filters,
     sort,
     pagination,
   });
+
+  // Add/Edit form dialog state
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+
+  // Delete confirmation state
+  const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
+
+  // Detail drawer state
+  const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  useEffect(() => {
+    if (!data) return;
+    const maxPage = Math.max(1, Math.ceil(data.total / pagination.pageSize));
+    if (pagination.page > maxPage) {
+      setPagination((p) => ({ ...p, page: maxPage }));
+    }
+  }, [data, pagination.pageSize, pagination.page]);
+
 
   function handleSortChange(field: SortableField) {
     setSort((prev) => {
@@ -45,21 +85,69 @@ export function CustomerDashboard() {
     });
   }
 
+  function handleFiltersChange(next: Filters) {
+    setFilters(next);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }
+
+  function handleAddNew() {
+    setEditingCustomer(null);
+    setFormOpen(true);
+  }
+
+  function handleEdit(customer: Customer) {
+    setEditingCustomer(customer);
+    setDetailOpen(false); // close drawer if editing from within it
+    setFormOpen(true);
+  }
+
+  function handleDelete(customer: Customer) {
+    setDeletingCustomer(customer);
+  }
+
+  function handleRowClick(customer: Customer) {
+    setDetailCustomer(customer);
+    setDetailOpen(true);
+  }
+
   const totalPages = data ? Math.ceil(data.total / pagination.pageSize) : 0;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <Input
-          placeholder="Search customers..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between">
+        <div className="flex items-center gap-4">
+          <Input
+            placeholder="Search customers..."
+            value={search}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+            className="max-w-sm"
+          />
+
+       <CustomerFiltersPanel
+  filters={filters}
+  onFiltersChange={handleFiltersChange}
+  activeFilterCount={activeFilterCount}
+  onClearAll={clearAll}
+  onApplyTemplate={(template) => {
+    applyTemplate(template.filters);
+    if (template.sort) setSort(template.sort);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }}
+  savedFilters={savedFilters}
+  onSaveCurrentFilter={saveCurrentFilter}
+  onApplySavedFilter={(f) => {
+    applySavedFilter(f);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }}
+  onDeleteSavedFilter={deleteSavedFilter}
+  onReorderSavedFilters={reorderSavedFilters}
+/>
+        </div>
+
+        <Button onClick={handleAddNew}>Add Customer</Button>
       </div>
 
-      {isLoading && <p className="text-muted-foreground">Loading customers…</p>}
-
+     {isLoading && !data && <CustomerTableSkeleton />}
       {isError && (
         <div className="text-destructive">
           <p>Failed to load customers: {(error as Error).message}</p>
@@ -69,18 +157,29 @@ export function CustomerDashboard() {
         </div>
       )}
 
-      {data && (
-        <>
-          <CustomerTable
-            customers={data.data}
-            sort={sort}
-            onSortChange={handleSortChange}
-            onRowClick={(c: Customer) => console.log("open detail", c)}
-            onEdit={(c: Customer) => console.log("edit", c)}
-            onDelete={(c: Customer) => console.log("delete", c)}
-          />
+{data && (
+  <>
+    {data.data.length === 0 ? (
+      <EmptyState
+        hasActiveFilters={activeFilterCount > 0 || search.trim().length > 0}
+        onClearFilters={() => {
+          clearAll();
+          setSearch("");
+        }}
+      />
+    ) : (
+      <CustomerTable
+        customers={data.data}
+        sort={sort}
+        onSortChange={handleSortChange}
+        onRowClick={handleRowClick}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
+    )}
 
-          <div className="flex items-center justify-between">
+          {data.data.length > 0 && (
+            <div className="flex items-center justify-between">
             <Select
               value={String(pagination.pageSize)}
               onValueChange={(val) =>
@@ -116,9 +215,23 @@ export function CustomerDashboard() {
                 Next
               </Button>
             </div>
-          </div>
+          </div>)}
         </>
       )}
+
+      <CustomerFormDialog open={formOpen} onOpenChange={setFormOpen} customer={editingCustomer} />
+      <DeleteConfirmDialog
+        open={Boolean(deletingCustomer)}
+        onOpenChange={(open) => !open && setDeletingCustomer(null)}
+        customer={deletingCustomer}
+      />
+      <CustomerDetailDrawer
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        customer={detailCustomer}
+        onEdit={handleEdit}
+      />
+      <Toaster />
     </div>
   );
 }
