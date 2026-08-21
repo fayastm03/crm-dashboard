@@ -1,33 +1,56 @@
 # Advanced CRM Dashboard
 
+A customer management dashboard built with Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui, and TanStack Query, backed by a mock API layer.
+
 ## Setup
 
-```bash
+\`\`\`bash
 npm install
 npm run dev
-```
+\`\`\`
 
 Open http://localhost:3000.
 
-## What's scaffolded (Phase 0)
+## Tech Stack
 
-- Next.js App Router + TypeScript + Tailwind, configured for shadcn/ui
-- `src/app/providers.tsx` — TanStack Query's `QueryClientProvider`, wired into `layout.tsx`
-- `src/features/customers/types/customer.types.ts` — the `Customer` domain model and every supporting type (`CustomerFilters`, `SortConfig`, `FetchCustomersParams`, etc.) that the rest of the app will import
-- `src/features/customers/api/mock-data.ts` — 150 deterministically-generated customers (seeded PRNG, so the dataset is identical on every run — useful for reliable manual testing of filters)
-- `src/lib/utils.ts` — the `cn()` helper shadcn/ui components expect
+- **Next.js (App Router)** + **TypeScript**
+- **Tailwind CSS** + **shadcn/ui** components
+- **TanStack Query** for data fetching, caching, and mutations
+- **react-hook-form** + **zod** for form state and validation
+- **@dnd-kit** for drag-and-drop (chosen over react-beautiful-dnd, which is unmaintained and has known React 18 Strict Mode issues)
 
-## Next steps (Phase 1)
+## Architecture
 
-1. Install shadcn/ui components as you need them, e.g.:
-   ```bash
-   npx shadcn@latest add table button input badge dialog sheet form select checkbox toast dropdown-menu popover calendar
-   ```
-2. Build `src/features/customers/api/mock-api.ts` — an async function that takes `FetchCustomersParams` and returns `FetchCustomersResult`, applying search/filter/sort/pagination against `MOCK_CUSTOMERS` with a simulated delay.
-3. Wrap it in `src/features/customers/api/customer.queries.ts` with `useQuery`/`useMutation` hooks.
-4. Build `CustomerTable` + search + sorting + pagination on top of that.
+Feature-based folder structure — everything related to "customers" lives under `src/features/customers/`:
 
-## Design decisions
+\`\`\`
+src/features/customers/
+├── api/          # mock API + TanStack Query hooks
+├── components/   # all UI components for this feature
+├── hooks/        # feature-specific hooks (filters, debounce)
+├── schemas/      # zod validation schemas
+├── types/        # the single source of truth for data shapes
+└── utils/        # pure functions (filter templates)
+\`\`\`
 
-- **Mock dataset uses a seeded PRNG**, not `@faker-js/faker` — avoids an extra dependency for something this small and keeps output identical run to run.
-- **`Providers` is a separate client component** rather than making `layout.tsx` itself a client component — keeps the root layout server-rendered where possible.
+Components never talk to data directly — everything flows through typed hooks in `api/customer.queries.ts`, which wrap `api/mock-api.ts`. If this were backed by a real API, only the internals of `mock-api.ts` would need to change; every component, hook, and type stays the same.
+
+## Design Decisions
+
+- **Mock data uses a seeded PRNG**, not a library like `@faker-js/faker` — keeps the dataset dependency-free and identical on every run, which made testing filters more reliable.
+- **Mutations live in a module-level array (`mutableCustomers`)** separate from the original seed data (`mock-data.ts`), so the original 150 records stay untouched as a reference "reset point." Data does **not** persist across a page refresh — this is intentional for a mock API; if this became a real app, only the data-layer functions in `mock-api.ts` would change to call a real backend.
+- **Company filter list is derived live from customer data** (`fetchCompanies`), not hardcoded — so a company introduced via "Add Customer" immediately shows up as filterable.
+- **Filters apply in real time** as the user selects them (the brief allows either an Apply button or real-time), rather than requiring an explicit "Apply" click — this also means "Save current filter" always saves exactly what's currently selected, with no extra step.
+- **Phone and email filter inputs are debounced** (300ms) since they're free-text; checkboxes and date pickers apply instantly since they're discrete selections, not typing.
+- **Filter templates can set a default sort** — e.g. "Recent Contacts" also sorts by last-contact-date descending, since "recent" implies an order, not just a subset.
+- **Drag-and-drop scope: reordering Saved Filters** (one of the three options the brief allows), implemented with `@dnd-kit/core` + `@dnd-kit/sortable`. Drag is isolated to a dedicated grip handle so clicking "Apply" or delete on a saved filter doesn't get mistaken for a drag gesture.
+- **Pagination self-corrects** if the current page becomes out of range after a delete or a filter narrows the result set, rather than showing a blank page.
+- **Mock API has ~400ms simulated latency** specifically so loading states are visible/demonstrable, not just theoretically implemented.
+
+## What I'd do with more time
+
+- Optimistic updates for mutations (listed as an optional bonus in the brief — not implemented, so the UI waits for the mock API round-trip before updating)
+- Bulk actions (select multiple, bulk status change/delete)
+- CSV export of filtered results
+- Persisting saved filters to `localStorage` so they survive a refresh
+- Duplicate-email validation on the Add/Edit form
